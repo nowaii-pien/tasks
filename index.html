@@ -304,6 +304,19 @@ function saveEditTask(id) {
   renderTasks(); scheduleSave('tasks');
 }
 
+function toDateStr(val) {
+  if (!val) return '';
+  // T以降を含むISO形式の場合は日付部分だけ取り出す
+  if (String(val).includes('T')) {
+    const d = new Date(val);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate() + 1).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  return val;
+}
+
 function renderTasks() {
   const list = document.getElementById('task-list');
   const today = getTodayStr();
@@ -312,14 +325,14 @@ function renderTasks() {
   list.innerHTML = filtered.map(t => {
     const id = Number(t.id);
     const overdue = t.deadline&&t.deadline<today&&!t.done;
-    const dlBadge = t.deadline?`<span class="badge ${overdue?'badge-overdue':'badge-date'}">📅 締切 ${fmtDate(t.deadline)}</span>`:'';
+    const dlBadge = t.deadline?`<span class="badge ${overdue?'badge-overdue':'badge-date'}">📅 締切 ${fmtDate((toDateStr)t.deadline)}</span>`:'';
     const catBadge = t.cat?`<span class="badge" style="${catBadgeStyle(t.cat)}">${escHtml(t.cat)}</span>`:'';
     const isEd = editingTaskId===id;
     const catOpts = `<option value="" ${!t.cat?'selected':''}>カテゴリなし</option>` + categories.map(c => `<option value="${escHtml(c.name)}" ${c.name===t.cat?'selected':''}>${escHtml(c.name)}</option>`).join('');
     const editArea = isEd?`<div class="edit-area">
       <div class="edit-row">
         <input type="text" id="et-${id}" value="${escHtml(t.title)}" placeholder="タスク名" onkeydown="if(event.key==='Enter')saveEditTask(${id});if(event.key==='Escape')cancelEditTask()">
-        <input type="date" id="ed-${id}" value="${escHtml(t.deadline||'')}">
+        <input type="date" id="ed-${id}" value="${toDateStr(t.deadline)}">
         <select id="ec-${id}">${catOpts}</select>
       </div>
       <div class="edit-btns">
