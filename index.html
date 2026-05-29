@@ -191,8 +191,7 @@ function jsonpFetch(sheet) {
       script.remove();
     };
     script.onerror = reject;
-    // キャッシュ回避のためタイムスタンプを付加
-    script.src = `${API_URL}?api=${sheet}&callback=${cbName}&_=${Date.now()}`;
+    script.src = `${API_URL}?api=${sheet}&callback=${cbName}`;
     document.head.appendChild(script);
   });
 }
