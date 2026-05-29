@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>マイタスク</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f7; color: #1d1d1f; min-height: 100vh; }
+.app { max-width: 680px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+.app-title { font-size: 20px; font-weight: 600; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+.status-bar { font-size: 12px; color: #aeaeb2; }
+.status-bar.syncing { color: #0071e3; }
+.status-bar.saved { color: #1a7a56; }
+.status-bar.error { color: #c0392b; }
+.btn-settings { background: none; border: 1px solid #d1d1d6; border-radius: 8px; padding: 5px 10px; font-size: 13px; cursor: pointer; color: #6e6e73; }
+.btn-settings:hover { background: #e5e5ea; }
+.tabs { display: flex; gap: 4px; background: #e5e5ea; border-radius: 10px; padding: 4px; margin-bottom: 1.5rem; }
+.tab { flex: 1; padding: 8px 12px; border: none; background: transparent; border-radius: 7px; font-size: 14px; font-weight: 500; cursor: pointer; color: #6e6e73; transition: all 0.15s; }
+.tab.active { background: #fff; color: #1d1d1f; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.section { display: none; }
+.section.active { display: block; }
+.add-form { display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.add-form input, .add-form select { flex: 1; min-width: 120px; height: 38px; padding: 0 10px; border: 1px solid #d1d1d6; border-radius: 8px; background: #fff; color: #1d1d1f; font-size: 14px; }
+.add-form input[type="date"], .add-form input[type="datetime-local"] { flex: 0 0 155px; }
+.add-form select { flex: 0 0 120px; }
+.btn-add { height: 38px; padding: 0 16px; border: 1px solid #d1d1d6; border-radius: 8px; background: #fff; color: #1d1d1f; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.btn-add:hover { background: #f0f0f5; }
+.filters { display: flex; gap: 6px; margin-bottom: 1rem; flex-wrap: wrap; }
+.filter-btn { padding: 5px 14px; border: 1px solid #d1d1d6; border-radius: 20px; background: #fff; font-size: 13px; cursor: pointer; color: #6e6e73; }
+.filter-btn.active { border-color: #0071e3; color: #0071e3; background: #e8f1fd; }
+.task-list { display: flex; flex-direction: column; gap: 6px; }
+.task-item { background: #fff; border: 1px solid #e5e5ea; border-radius: 10px; }
+.task-item.dragging { opacity: 0.4; }
+.task-item.drag-over { border-color: #0071e3; border-style: dashed; }
+.task-row { display: flex; align-items: flex-start; gap: 10px; padding: 11px 13px; }
+.task-item.done .task-title { text-decoration: line-through; color: #aeaeb2; }
+.task-item.done .task-row { opacity: 0.6; }
+.task-item.editing { border-color: #0071e3; }
+.drag-handle { color: #c7c7cc; cursor: grab; padding: 2px 2px 0; font-size: 16px; flex-shrink: 0; touch-action: none; user-select: none; }
+.drag-handle:active { cursor: grabbing; }
+.task-check { width: 20px; height: 20px; border: 2px solid #c7c7cc; border-radius: 5px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 1px; transition: all 0.15s; }
+.task-check.checked { background: #0071e3; border-color: #0071e3; }
+.task-body { flex: 1; min-width: 0; }
+.task-title { font-size: 14px; color: #1d1d1f; }
+.task-meta { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; align-items: center; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+.badge-date { background: #f0f0f5; color: #6e6e73; }
+.badge-overdue { background: #fde8e8; color: #c0392b; }
+.badge-created { font-size: 11px; color: #aeaeb2; }
+.task-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.icon-btn { background: none; border: none; cursor: pointer; color: #aeaeb2; padding: 4px; border-radius: 6px; font-size: 15px; }
+.icon-btn:hover { color: #1d1d1f; background: #f0f0f5; }
+.icon-btn.del:hover { color: #c0392b; background: #fde8e8; }
+.icon-btn.edit:hover { color: #0071e3; background: #e8f1fd; }
+.edit-area { padding: 10px 13px 13px; border-top: 1px solid #e5e5ea; display: flex; flex-direction: column; gap: 8px; }
+.edit-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.edit-area input, .edit-area select { height: 34px; padding: 0 10px; border: 1px solid #d1d1d6; border-radius: 8px; background: #fff; color: #1d1d1f; font-size: 13px; }
+.edit-area input[type="text"] { flex: 1; min-width: 150px; }
+.edit-area input[type="date"], .edit-area input[type="datetime-local"] { flex: 0 0 160px; }
+.edit-area select { flex: 0 0 110px; }
+.edit-btns { display: flex; gap: 6px; justify-content: flex-end; }
+.btn-save { height: 32px; padding: 0 14px; border: none; border-radius: 8px; background: #0071e3; color: #fff; font-size: 13px; font-weight: 500; cursor: pointer; }
+.btn-save:hover { background: #0077ed; }
+.btn-cancel { height: 32px; padding: 0 14px; border: 1px solid #d1d1d6; border-radius: 8px; background: #fff; color: #6e6e73; font-size: 13px; cursor: pointer; }
+.btn-cancel:hover { background: #f5f5f7; }
+.event-list { display: flex; flex-direction: column; gap: 8px; }
+.event-item { background: #fff; border: 1px solid #e5e5ea; border-radius: 10px; border-left: 3px solid #0071e3; }
+.event-item.dragging { opacity: 0.4; }
+.event-item.drag-over { border-color: #0071e3; border-style: dashed; }
+.event-item.editing { border-color: #0071e3; }
+.event-body { padding: 12px 14px; }
+.event-header { display: flex; align-items: flex-start; gap: 6px; }
+.event-title { font-size: 14px; font-weight: 600; color: #1d1d1f; }
+.event-meta { font-size: 13px; color: #6e6e73; margin-top: 4px; display: flex; gap: 12px; flex-wrap: wrap; }
+.event-note-text { font-size: 13px; color: #6e6e73; margin-top: 6px; padding-top: 6px; border-top: 1px solid #f0f0f5; }
+.event-created { font-size: 11px; color: #aeaeb2; margin-top: 6px; }
+.empty { text-align: center; padding: 2.5rem; color: #aeaeb2; font-size: 14px; }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; padding: 1rem; }
+.modal-overlay.open { display: flex; }
+.modal { background: #fff; border-radius: 14px; padding: 1.5rem; width: 100%; max-width: 420px; max-height: 80vh; overflow-y: auto; }
+.modal-title { font-size: 17px; font-weight: 600; margin-bottom: 1.2rem; }
+.cat-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 1rem; }
+.cat-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #f5f5f7; border-radius: 8px; }
+.cat-color-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(0,0,0,0.1); flex-shrink: 0; cursor: pointer; padding: 2px; }
+.cat-name { flex: 1; font-size: 14px; }
+.cat-add-row { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
+.cat-add-row input[type="text"] { flex: 1; min-width: 120px; height: 36px; padding: 0 10px; border: 1px solid #d1d1d6; border-radius: 8px; font-size: 14px; }
+.cat-add-row input[type="color"] { width: 36px; height: 36px; border: 1px solid #d1d1d6; border-radius: 8px; padding: 2px; cursor: pointer; background: #fff; }
+.cat-add-row button { height: 36px; padding: 0 14px; border: none; border-radius: 8px; background: #0071e3; color: #fff; font-size: 14px; cursor: pointer; }
+.modal-close { width: 100%; height: 38px; border: 1px solid #d1d1d6; border-radius: 8px; background: #fff; font-size: 14px; cursor: pointer; color: #6e6e73; }
+.modal-close:hover { background: #f5f5f7; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <span class="app-title">📋 マイタスク</span>
+    <div class="header-right">
+      <span class="status-bar" id="status">読み込み中...</span>
+      <button class="btn-settings" onclick="openSettings()">⚙️ カテゴリ</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('tasks',this)">✅ タスク</button>
+    <button class="tab" onclick="switchTab('events',this)">📅 予定メモ</button>
+  </div>
+  <div id="tasks" class="section active">
+    <div class="add-form">
+      <input type="text" id="task-input" placeholder="タスクを入力..." onkeydown="if(event.key==='Enter')addTask()">
+      <input type="date" id="task-date">
+      <select id="task-cat"></select>
+      <button class="btn-add" onclick="addTask()">＋ 追加</button>
+    </div>
+    <div class="filters">
+      <button class="filter-btn active" onclick="setFilter('all',this)">すべて</button>
+      <button class="filter-btn" onclick="setFilter('active',this)">未完了</button>
+      <button class="filter-btn" onclick="setFilter('done',this)">完了済み</button>
+    </div>
+    <div class="task-list" id="task-list"></div>
+  </div>
+  <div id="events" class="section">
+    <div class="add-form">
+      <input type="text" id="event-input" placeholder="予定名・説明会名..." style="flex:2" onkeydown="if(event.key==='Enter')addEvent()">
+      <input type="datetime-local" id="event-date">
+      <button class="btn-add" onclick="addEvent()">＋ 追加</button>
+    </div>
+    <div class="add-form" style="margin-top:-10px">
+      <input type="text" id="event-place" placeholder="場所（任意）">
+      <input type="text" id="event-note-input" placeholder="メモ（任意）">
+    </div>
+    <div class="event-list" id="event-list"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <div class="modal-title">⚙️ カテゴリ管理</div>
+    <div class="cat-list" id="cat-list"></div>
+    <div class="cat-add-row">
+      <input type="text" id="cat-input" placeholder="新しいカテゴリ名..." onkeydown="if(event.key==='Enter')addCategory()">
+      <input type="color" id="cat-color" value="#34c759">
+      <button onclick="addCategory()">追加</button>
+    </div>
+    <button class="modal-close" onclick="closeSettings()">閉じる</button>
+  </div>
+</div>
+
+<script>
+// ここにGASのURLを貼る
+const API_URL = 'https://script.google.com/macros/s/AKfycbwZFaxqsGGex8XFAHwOtVZTiTYtbpnzI28ErrmLOQmoNYC9W41Y5ZjwNclnoEN9TMz1/exec';
+
+let tasks = [], events = [], categories = [];
+let nextTaskId = 1, nextEventId = 1;
+let currentFilter = 'all';
+let editingTaskId = null, editingEventId = null;
+let saveTimer = {};
+let dragSrc = null, dragType = null;
+let touchItem = null, touchClone = null, touchOffX = 0, touchOffY = 0, touchType = null;
+
+const DEFAULT_CATS = [
+  { name:'仕事', color:'#0071e3' },
+  { name:'個人', color:'#34c759' },
+  { name:'学習', color:'#ff9500' },
+  { name:'買い物', color:'#ff2d55' },
+];
+
+function getTodayStr() { return new Date().toISOString().slice(0,10); }
+function fmtDate(s) { if (!s) return ''; const [y,m,d] = s.split('-'); return `${y}年${parseInt(m)}月${parseInt(d)}日`; }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function getCatColor(name) { const c = categories.find(c => c.name===name); return c ? c.color : '#aeaeb2'; }
+function hexToRgb(hex) { return { r:parseInt(hex.slice(1,3),16), g:parseInt(hex.slice(3,5),16), b:parseInt(hex.slice(5,7),16) }; }
+function catBadgeStyle(name) { const color = getCatColor(name); const {r,g,b} = hexToRgb(color); return `background:rgba(${r},${g},${b},0.12);color:${color};`; }
+
+function setStatus(type, msg) {
+  const el = document.getElementById('status');
+  el.className = 'status-bar ' + type;
+  el.textContent = msg;
+}
+
+// JSONP でGASからデータ取得（CORS回避）
+function jsonpFetch(sheet) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'cb_' + sheet + '_' + Date.now();
+    const script = document.createElement('script');
+    window[cbName] = (data) => {
+      resolve(data);
+      delete window[cbName];
+      script.remove();
+    };
+    script.onerror = reject;
+    script.src = `${API_URL}?api=${sheet}&callback=${cbName}`;
+    document.head.appendChild(script);
+  });
+}
+
+async function loadAll() {
+  setStatus('syncing', '読み込み中...');
+  try {
+    const [t, e, c] = await Promise.all([
+      jsonpFetch('tasks'),
+      jsonpFetch('events'),
+      jsonpFetch('categories'),
+    ]);
+    tasks = t.map(r => ({ ...r, done: r.done === 'TRUE' || r.done === true }));
+    events = e;
+    categories = c.filter(r => r.name).map(r => ({ name: r.name, color: r.color || '#aeaeb2' }));
+    if (!categories.length) categories = DEFAULT_CATS;
+    nextTaskId = tasks.reduce((m,t) => Math.max(m, Number(t.id)||0), 0) + 1;
+    nextEventId = events.reduce((m,e) => Math.max(m, Number(e.id)||0), 0) + 1;
+    setStatus('saved', '✓ 同期済み');
+    renderCatSelects(); renderTasks(); renderEvents();
+  } catch(err) {
+    setStatus('error', '読み込み失敗');
+    console.error(err);
+  }
+}
+
+function scheduleSave(sheet) {
+  if (saveTimer[sheet]) clearTimeout(saveTimer[sheet]);
+  saveTimer[sheet] = setTimeout(() => syncData(sheet), 600);
+}
+
+async function syncData(sheet) {
+  setStatus('syncing', '保存中...');
+  try {
+    let rows;
+    if (sheet === 'tasks') rows = tasks.map(t => ({ ...t, done: t.done ? 'TRUE' : 'FALSE' }));
+    else if (sheet === 'events') rows = events;
+    else if (sheet === 'categories') rows = categories;
+    await fetch(API_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ sheet, rows }),
+    });
+    setStatus('saved', '✓ 保存しました');
+  } catch(err) {
+    setStatus('error', '保存失敗');
+    console.error(err);
+  }
+}
+
+function renderCatSelects() {
+  const opts = `<option value="">カテゴリなし</option>` + categories.map(c => `<option value="${escHtml(c.name)}">${escHtml(c.name)}</option>`).join('');
+  document.getElementById('task-cat').innerHTML = opts;
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+  btn.classList.add('active');
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTasks();
+}
+
+function addTask() {
+  const title = document.getElementById('task-input').value.trim();
+  if (!title) return;
+  tasks.push({ id: nextTaskId++, title, deadline: document.getElementById('task-date').value, cat: document.getElementById('task-cat').value, done: false, createdAt: getTodayStr() });
+  document.getElementById('task-input').value = '';
+  document.getElementById('task-date').value = '';
+  document.getElementById('task-cat').value = '';
+  renderTasks(); scheduleSave('tasks');
+}
+
+function toggleTask(id) {
+  const t = tasks.find(t => Number(t.id)===id);
+  if (t) { t.done = !t.done; renderTasks(); scheduleSave('tasks'); }
+}
+
+function deleteTask(id) {
+  if (!confirm('このタスクを削除しますか？')) return;
+  tasks = tasks.filter(t => Number(t.id)!==id);
+  if (editingTaskId===id) editingTaskId = null;
+  renderTasks(); scheduleSave('tasks');
+}
+
+function startEditTask(id) {
+  editingTaskId = (editingTaskId===id) ? null : id;
+  renderTasks();
+  if (editingTaskId!==null) setTimeout(() => { const el = document.getElementById('et-'+id); if(el){el.focus();el.select();} }, 30);
+}
+
+function cancelEditTask() { editingTaskId = null; renderTasks(); }
+
+function saveEditTask(id) {
+  const t = tasks.find(t => Number(t.id)===id);
+  if (!t) return;
+  const v = document.getElementById('et-'+id).value.trim();
+  if (!v) return;
+  t.title = v;
+  t.deadline = document.getElementById('ed-'+id).value;
+  t.cat = document.getElementById('ec-'+id).value;
+  editingTaskId = null;
+  renderTasks(); scheduleSave('tasks');
+}
+
+function renderTasks() {
+  const list = document.getElementById('task-list');
+  const today = getTodayStr();
+  let filtered = tasks.filter(t => currentFilter==='active'?!t.done:currentFilter==='done'?t.done:true);
+  if (!filtered.length) { list.innerHTML = '<div class="empty">タスクがありません</div>'; return; }
+  list.innerHTML = filtered.map(t => {
+    const id = Number(t.id);
+    const overdue = t.deadline&&t.deadline<today&&!t.done;
+    const dlBadge = t.deadline?`<span class="badge ${overdue?'badge-overdue':'badge-date'}">📅 締切 ${fmtDate(t.deadline)}</span>`:'';
+    const catBadge = t.cat?`<span class="badge" style="${catBadgeStyle(t.cat)}">${escHtml(t.cat)}</span>`:'';
+    const isEd = editingTaskId===id;
+    const catOpts = `<option value="" ${!t.cat?'selected':''}>カテゴリなし</option>` + categories.map(c => `<option value="${escHtml(c.name)}" ${c.name===t.cat?'selected':''}>${escHtml(c.name)}</option>`).join('');
+    const editArea = isEd?`<div class="edit-area">
+      <div class="edit-row">
+        <input type="text" id="et-${id}" value="${escHtml(t.title)}" placeholder="タスク名" onkeydown="if(event.key==='Enter')saveEditTask(${id});if(event.key==='Escape')cancelEditTask()">
+        <input type="date" id="ed-${id}" value="${escHtml(t.deadline||'')}">
+        <select id="ec-${id}">${catOpts}</select>
+      </div>
+      <div class="edit-btns">
+        <button class="btn-cancel" onclick="cancelEditTask()">キャンセル</button>
+        <button class="btn-save" onclick="saveEditTask(${id})">✓ 保存</button>
+      </div>
+    </div>`:'';
+    return `<div class="task-item${t.done?' done':''}${isEd?' editing':''}" draggable="true" data-id="${id}" data-type="task"
+      ondragstart="onDragStart(event,'task')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'task')" ondragend="onDragEnd(event)">
+      <div class="task-row">
+        <span class="drag-handle">⠿</span>
+        <div class="task-check${t.done?' checked':''}" onclick="toggleTask(${id})">
+          ${t.done?'<svg width="12" height="12" viewBox="0 0 12 12"><polyline points="1,6 4,10 11,2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>':''}
+        </div>
+        <div class="task-body">
+          <div class="task-title">${escHtml(t.title)}</div>
+          <div class="task-meta">${dlBadge}${catBadge}<span class="badge-created">記入日: ${fmtDate(t.createdAt)}</span></div>
+        </div>
+        <div class="task-actions">
+          <button class="icon-btn edit" onclick="startEditTask(${id})" title="編集">✏️</button>
+          <button class="icon-btn del" onclick="deleteTask(${id})" title="削除">🗑️</button>
+        </div>
+      </div>${editArea}
+    </div>`;
+  }).join('');
+  initTouchDrag('task');
+}
+
+function addEvent() {
+  const title = document.getElementById('event-input').value.trim();
+  if (!title) return;
+  events.push({ id: nextEventId++, title, datetime: document.getElementById('event-date').value, place: document.getElementById('event-place').value.trim(), note: document.getElementById('event-note-input').value.trim(), createdAt: getTodayStr() });
+  document.getElementById('event-input').value = '';
+  document.getElementById('event-date').value = '';
+  document.getElementById('event-place').value = '';
+  document.getElementById('event-note-input').value = '';
+  renderEvents(); scheduleSave('events');
+}
+
+function deleteEvent(id) {
+  if (!confirm('この予定を削除しますか？')) return;
+  events = events.filter(e => Number(e.id)!==id);
+  if (editingEventId===id) editingEventId = null;
+  renderEvents(); scheduleSave('events');
+}
+
+function startEditEvent(id) {
+  editingEventId = (editingEventId===id) ? null : id;
+  renderEvents();
+  if (editingEventId!==null) setTimeout(() => { const el = document.getElementById('eet-'+id); if(el){el.focus();el.select();} }, 30);
+}
+
+function cancelEditEvent() { editingEventId = null; renderEvents(); }
+
+function saveEditEvent(id) {
+  const e = events.find(e => Number(e.id)===id);
+  if (!e) return;
+  const v = document.getElementById('eet-'+id).value.trim();
+  if (!v) return;
+  e.title = v;
+  e.datetime = document.getElementById('eedt-'+id).value;
+  e.place = document.getElementById('eep-'+id).value.trim();
+  e.note = document.getElementById('een-'+id).value.trim();
+  editingEventId = null;
+  renderEvents(); scheduleSave('events');
+}
+
+function renderEvents() {
+  const list = document.getElementById('event-list');
+  if (!events.length) { list.innerHTML = '<div class="empty">予定がありません</div>'; return; }
+  list.innerHTML = events.map(e => {
+    const id = Number(e.id);
+    const dtStr = e.datetime ? new Date(e.datetime).toLocaleString('ja-JP',{month:'long',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit'}) : '';
+    const isEd = editingEventId===id;
+    const editArea = isEd?`<div class="edit-area">
+      <div class="edit-row">
+        <input type="text" id="eet-${id}" value="${escHtml(e.title)}" placeholder="予定名" onkeydown="if(event.key==='Escape')cancelEditEvent()">
+        <input type="datetime-local" id="eedt-${id}" value="${escHtml(e.datetime||'')}">
+      </div>
+      <div class="edit-row">
+        <input type="text" id="eep-${id}" value="${escHtml(e.place||'')}" placeholder="場所（任意）">
+        <input type="text" id="een-${id}" value="${escHtml(e.note||'')}" placeholder="メモ（任意）">
+      </div>
+      <div class="edit-btns">
+        <button class="btn-cancel" onclick="cancelEditEvent()">キャンセル</button>
+        <button class="btn-save" onclick="saveEditEvent(${id})">✓ 保存</button>
+      </div>
+    </div>`:'';
+    return `<div class="event-item${isEd?' editing':''}" draggable="true" data-id="${id}" data-type="event"
+      ondragstart="onDragStart(event,'event')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'event')" ondragend="onDragEnd(event)">
+      <div class="event-body">
+        <div class="event-header">
+          <span class="drag-handle">⠿</span>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+              <div style="flex:1;min-width:0">
+                <div class="event-title">${escHtml(e.title)}</div>
+                <div class="event-meta">
+                  ${dtStr?`<span>🕐 ${dtStr}</span>`:''}
+                  ${e.place?`<span>📍 ${escHtml(e.place)}</span>`:''}
+                </div>
+                ${e.note?`<div class="event-note-text">${escHtml(e.note)}</div>`:''}
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn edit" onclick="startEditEvent(${id})" title="編集">✏️</button>
+                <button class="icon-btn del" onclick="deleteEvent(${id})" title="削除">🗑️</button>
+              </div>
+            </div>
+            <div class="event-created">記入日: ${fmtDate(e.createdAt)}</div>
+          </div>
+        </div>
+      </div>${editArea}
+    </div>`;
+  }).join('');
+  initTouchDrag('event');
+}
+
+function onDragStart(e, type) { dragSrc = e.currentTarget; dragType = type; e.dataTransfer.effectAllowed = 'move'; setTimeout(() => dragSrc.classList.add('dragging'), 0); }
+function onDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (e.currentTarget !== dragSrc) e.currentTarget.classList.add('drag-over'); }
+function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function onDragEnd(e) { document.querySelectorAll('.dragging,.drag-over').forEach(el => el.classList.remove('dragging','drag-over')); }
+function onDrop(e, type) {
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  if (!dragSrc || e.currentTarget===dragSrc || dragType!==type) return;
+  const srcId = Number(dragSrc.dataset.id), dstId = Number(e.currentTarget.dataset.id);
+  const arr = type==='task' ? tasks : events;
+  const si = arr.findIndex(x => Number(x.id)===srcId), di = arr.findIndex(x => Number(x.id)===dstId);
+  if (si<0||di<0) return;
+  arr.splice(di, 0, arr.splice(si, 1)[0]);
+  if (type==='task') { renderTasks(); scheduleSave('tasks'); } else { renderEvents(); scheduleSave('events'); }
+}
+
+function initTouchDrag(type) {
+  const selector = type==='task' ? '.task-item' : '.event-item';
+  document.querySelectorAll(selector + ' .drag-handle').forEach(h => {
+    h.addEventListener('touchstart', onTouchStart, { passive: false });
+  });
+}
+
+function onTouchStart(e) {
+  const item = e.currentTarget.closest('.task-item, .event-item');
+  if (!item) return;
+  touchType = item.dataset.type; touchItem = item;
+  const rect = item.getBoundingClientRect();
+  touchOffX = e.touches[0].clientX - rect.left;
+  touchOffY = e.touches[0].clientY - rect.top;
+  touchClone = item.cloneNode(true);
+  touchClone.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;opacity:0.8;pointer-events:none;z-index:999;`;
+  document.body.appendChild(touchClone);
+  item.classList.add('dragging');
+  document.addEventListener('touchmove', onTouchMove, { passive: false });
+  document.addEventListener('touchend', onTouchEnd);
+}
+
+function onTouchMove(e) {
+  e.preventDefault();
+  if (!touchClone) return;
+  touchClone.style.left = (e.touches[0].clientX - touchOffX) + 'px';
+  touchClone.style.top = (e.touches[0].clientY - touchOffY) + 'px';
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+  const el = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+  const target = el && el.closest('.task-item, .event-item');
+  if (target && target !== touchItem) target.classList.add('drag-over');
+}
+
+function onTouchEnd(e) {
+  document.removeEventListener('touchmove', onTouchMove);
+  document.removeEventListener('touchend', onTouchEnd);
+  if (touchClone) { touchClone.remove(); touchClone = null; }
+  if (!touchItem) return;
+  touchItem.classList.remove('dragging');
+  const el = document.elementFromPoint(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  const target = el && el.closest('.task-item, .event-item');
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+  if (target && target !== touchItem && target.dataset.type === touchType) {
+    const srcId = Number(touchItem.dataset.id), dstId = Number(target.dataset.id);
+    const arr = touchType==='task' ? tasks : events;
+    const si = arr.findIndex(x => Number(x.id)===srcId), di = arr.findIndex(x => Number(x.id)===dstId);
+    if (si>=0 && di>=0) {
+      arr.splice(di, 0, arr.splice(si, 1)[0]);
+      if (touchType==='task') { renderTasks(); scheduleSave('tasks'); } else { renderEvents(); scheduleSave('events'); }
+    }
+  }
+  touchItem = null; touchType = null;
+}
+
+function openSettings() { renderCatList(); document.getElementById('settings-modal').classList.add('open'); }
+function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
+
+function addCategory() {
+  const name = document.getElementById('cat-input').value.trim();
+  const color = document.getElementById('cat-color').value;
+  if (!name || categories.find(c => c.name===name)) return;
+  categories.push({ name, color });
+  document.getElementById('cat-input').value = '';
+  document.getElementById('cat-color').value = '#34c759';
+  renderCatList(); renderCatSelects(); scheduleSave('categories');
+}
+
+function deleteCategory(name) {
+  categories = categories.filter(c => c.name !== name);
+  renderCatList(); renderCatSelects(); scheduleSave('categories');
+}
+
+function updateCatColor(name, color) {
+  const c = categories.find(c => c.name===name);
+  if (c) { c.color = color; renderCatList(); renderTasks(); scheduleSave('categories'); }
+}
+
+let catDragSrc = null;
+function renderCatList() {
+  const list = document.getElementById('cat-list');
+  list.innerHTML = categories.map((c, i) => `
+    <div class="cat-item" draggable="true" data-index="${i}"
+      ondragstart="catDragStart(event)" ondragover="catDragOver(event)" ondrop="catDrop(event)" ondragend="catDragEnd(event)">
+      <span class="drag-handle">⠿</span>
+      <input type="color" class="cat-color-dot" value="${escHtml(c.color)}" title="色を変更" onchange="updateCatColor('${escHtml(c.name)}', this.value)">
+      <span class="cat-name">${escHtml(c.name)}</span>
+      <button class="icon-btn del" onclick="deleteCategory('${escHtml(c.name)}')" title="削除">🗑️</button>
+    </div>`).join('');
+}
+
+function catDragStart(e) { catDragSrc = e.currentTarget; e.dataTransfer.effectAllowed = 'move'; setTimeout(()=>catDragSrc.classList.add('dragging'),0); }
+function catDragOver(e) { e.preventDefault(); if(e.currentTarget!==catDragSrc) e.currentTarget.classList.add('drag-over'); }
+function catDragEnd(e) { document.querySelectorAll('.dragging,.drag-over').forEach(el=>el.classList.remove('dragging','drag-over')); }
+function catDrop(e) {
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  if (!catDragSrc || e.currentTarget===catDragSrc) return;
+  const si = Number(catDragSrc.dataset.index), di = Number(e.currentTarget.dataset.index);
+  categories.splice(di, 0, categories.splice(si, 1)[0]);
+  renderCatList(); renderCatSelects(); scheduleSave('categories');
+}
+
+loadAll();
+</script>
+</body>
+</html>
