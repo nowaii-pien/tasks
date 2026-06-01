@@ -340,7 +340,6 @@ function renderTasks() {
     const catMatch = currentCat === 'all' || t.cat === currentCat;
     const statusMatch = currentFilter === 'active' ? !t.done : currentFilter === 'done' ? t.done : true;
     return catMatch && statusMatch;
-    renderCatTabs();
   });
   if (!filtered.length) { list.innerHTML = '<div class="empty">タスクがありません</div>'; return; }
   list.innerHTML = filtered.map(t => {
