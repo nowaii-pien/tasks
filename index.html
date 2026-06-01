@@ -119,6 +119,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <button class="filter-btn" onclick="setFilter('active',this)">未完了</button>
       <button class="filter-btn" onclick="setFilter('done',this)">完了済み</button>
     </div>
+    <div class="filters" id="cat-tabs"></div>
     <div class="task-list" id="task-list"></div>
   </div>
   <div id="events" class="section">
@@ -211,7 +212,7 @@ async function loadAll() {
     nextTaskId = tasks.reduce((m,t) => Math.max(m, Number(t.id)||0), 0) + 1;
     nextEventId = events.reduce((m,e) => Math.max(m, Number(e.id)||0), 0) + 1;
     setStatus('saved', '✓ 同期済み');
-    renderCatSelects(); renderTasks(); renderEvents();
+    renderCatSelects(); renderCatTabs(); renderTasks(); renderEvents();
   } catch(err) {
     setStatus('error', '読み込み失敗');
     console.error(err);
@@ -246,6 +247,21 @@ async function syncData(sheet) {
 function renderCatSelects() {
   const opts = `<option value="">カテゴリなし</option>` + categories.map(c => `<option value="${escHtml(c.name)}">${escHtml(c.name)}</option>`).join('');
   document.getElementById('task-cat').innerHTML = opts;
+}
+
+let currentCat = 'all';
+
+function setCatTab(cat, btn) {
+  currentCat = cat;
+  document.querySelectorAll('.cat-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTasks();
+}
+
+function renderCatTabs() {
+  const container = document.getElementById('cat-tabs');
+  container.innerHTML = `<button class="filter-btn cat-tab ${currentCat==='all'?'active':''}" onclick="setCatTab('all',this)">すべて</button>`
+    + categories.map(c => `<button class="filter-btn cat-tab ${currentCat===c.name?'active':''}" style="${currentCat===c.name?`border-color:${c.color};color:${c.color};background:rgba(${hexToRgb(c.color).r},${hexToRgb(c.color).g},${hexToRgb(c.color).b},0.1);`:''}" onclick="setCatTab('${escHtml(c.name)}',this)">${escHtml(c.name)}</button>`).join('');
 }
 
 function switchTab(tab, btn) {
@@ -320,7 +336,12 @@ function toDateStr(val) {
 function renderTasks() {
   const list = document.getElementById('task-list');
   const today = getTodayStr();
-  let filtered = tasks.filter(t => currentFilter==='active'?!t.done:currentFilter==='done'?t.done:true);
+  let filtered = tasks.filter(t => {
+    const catMatch = currentCat === 'all' || t.cat === currentCat;
+    const statusMatch = currentFilter === 'active' ? !t.done : currentFilter === 'done' ? t.done : true;
+    return catMatch && statusMatch;
+    renderCatTabs();
+  });
   if (!filtered.length) { list.innerHTML = '<div class="empty">タスクがありません</div>'; return; }
   list.innerHTML = filtered.map(t => {
     const id = Number(t.id);
