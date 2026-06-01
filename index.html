@@ -150,12 +150,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </div>
 
 <script>
-// ここにGASのURLを貼る
 const API_URL = 'https://script.google.com/macros/s/AKfycbwZFaxqsGGex8XFAHwOtVZTiTYtbpnzI28ErrmLOQmoNYC9W41Y5ZjwNclnoEN9TMz1/exec';
 
 let tasks = [], events = [], categories = [];
 let nextTaskId = 1, nextEventId = 1;
 let currentFilter = 'all';
+let currentCat = 'all';
 let editingTaskId = null, editingEventId = null;
 let saveTimer = {};
 let dragSrc = null, dragType = null;
@@ -175,22 +175,23 @@ function getCatColor(name) { const c = categories.find(c => c.name===name); retu
 function hexToRgb(hex) { return { r:parseInt(hex.slice(1,3),16), g:parseInt(hex.slice(3,5),16), b:parseInt(hex.slice(5,7),16) }; }
 function catBadgeStyle(name) { const color = getCatColor(name); const {r,g,b} = hexToRgb(color); return `background:rgba(${r},${g},${b},0.12);color:${color};`; }
 
+function toDateStr(val) {
+  if (!val) return '';
+  if (String(val).includes('T')) return String(val).slice(0, 10);
+  return val;
+}
+
 function setStatus(type, msg) {
   const el = document.getElementById('status');
   el.className = 'status-bar ' + type;
   el.textContent = msg;
 }
 
-// JSONP でGASからデータ取得（CORS回避）
 function jsonpFetch(sheet) {
   return new Promise((resolve, reject) => {
     const cbName = 'cb_' + sheet + '_' + Date.now();
     const script = document.createElement('script');
-    window[cbName] = (data) => {
-      resolve(data);
-      delete window[cbName];
-      script.remove();
-    };
+    window[cbName] = (data) => { resolve(data); delete window[cbName]; script.remove(); };
     script.onerror = reject;
     script.src = `${API_URL}?api=${sheet}&callback=${cbName}`;
     document.head.appendChild(script);
@@ -249,8 +250,6 @@ function renderCatSelects() {
   document.getElementById('task-cat').innerHTML = opts;
 }
 
-let currentCat = 'all';
-
 function setCatTab(cat, btn) {
   currentCat = cat;
   document.querySelectorAll('.cat-tab').forEach(b => b.classList.remove('active'));
@@ -260,8 +259,14 @@ function setCatTab(cat, btn) {
 
 function renderCatTabs() {
   const container = document.getElementById('cat-tabs');
-  container.innerHTML = `<button class="filter-btn cat-tab ${currentCat==='all'?'active':''}" onclick="setCatTab('all',this)">すべて</button>`
-    + categories.map(c => `<button class="filter-btn cat-tab ${currentCat===c.name?'active':''}" style="${currentCat===c.name?`border-color:${c.color};color:${c.color};background:rgba(${hexToRgb(c.color).r},${hexToRgb(c.color).g},${hexToRgb(c.color).b},0.1);`:''}" onclick="setCatTab('${escHtml(c.name)}',this)">${escHtml(c.name)}</button>`).join('');
+  const allBtn = `<button class="filter-btn cat-tab ${currentCat==='all'?'active':''}" onclick="setCatTab('all',this)">すべて</button>`;
+  const catBtns = categories.map(c => {
+    const isActive = currentCat === c.name;
+    const {r,g,b} = hexToRgb(c.color);
+    const style = isActive ? `border-color:${c.color};color:${c.color};background:rgba(${r},${g},${b},0.1);` : '';
+    return `<button class="filter-btn cat-tab ${isActive?'active':''}" style="${style}" onclick="setCatTab('${escHtml(c.name)}',this)">${escHtml(c.name)}</button>`;
+  }).join('');
+  container.innerHTML = allBtn + catBtns;
 }
 
 function switchTab(tab, btn) {
@@ -273,7 +278,7 @@ function switchTab(tab, btn) {
 
 function setFilter(f, btn) {
   currentFilter = f;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.filter-btn:not(.cat-tab)').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderTasks();
 }
@@ -314,23 +319,10 @@ function saveEditTask(id) {
   const v = document.getElementById('et-'+id).value.trim();
   if (!v) return;
   t.title = v;
-  t.deadline = document.getElementById('ed-'+id).value;
-  t.cat = document.getElementById('ec-'+id).value;
+  t.deadline = document.getElementById('ed-'+id).value || '';
+  t.cat = document.getElementById('ec-'+id).value || '';
   editingTaskId = null;
   renderTasks(); scheduleSave('tasks');
-}
-
-function toDateStr(val) {
-  if (!val) return '';
-  // T以降を含むISO形式の場合は日付部分だけ取り出す
-  if (String(val).includes('T')) {
-    const d = new Date(val);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate() + 1).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
-  return val;
 }
 
 function renderTasks() {
@@ -344,12 +336,13 @@ function renderTasks() {
   if (!filtered.length) { list.innerHTML = '<div class="empty">タスクがありません</div>'; return; }
   list.innerHTML = filtered.map(t => {
     const id = Number(t.id);
-    const overdue = t.deadline&&t.deadline<today&&!t.done;
-    const dlBadge = t.deadline?`<span class="badge ${overdue?'badge-overdue':'badge-date'}">📅 締切 ${fmtDate((toDateStr)t.deadline)}</span>`:'';
-    const catBadge = t.cat?`<span class="badge" style="${catBadgeStyle(t.cat)}">${escHtml(t.cat)}</span>`:'';
+    const deadlineStr = toDateStr(t.deadline);
+    const overdue = deadlineStr && deadlineStr < today && !t.done;
+    const dlBadge = deadlineStr ? `<span class="badge ${overdue?'badge-overdue':'badge-date'}">📅 締切 ${fmtDate(deadlineStr)}</span>` : '';
+    const catBadge = t.cat ? `<span class="badge" style="${catBadgeStyle(t.cat)}">${escHtml(t.cat)}</span>` : '';
     const isEd = editingTaskId===id;
     const catOpts = `<option value="" ${!t.cat?'selected':''}>カテゴリなし</option>` + categories.map(c => `<option value="${escHtml(c.name)}" ${c.name===t.cat?'selected':''}>${escHtml(c.name)}</option>`).join('');
-    const editArea = isEd?`<div class="edit-area">
+    const editArea = isEd ? `<div class="edit-area">
       <div class="edit-row">
         <input type="text" id="et-${id}" value="${escHtml(t.title)}" placeholder="タスク名" onkeydown="if(event.key==='Enter')saveEditTask(${id});if(event.key==='Escape')cancelEditTask()">
         <input type="date" id="ed-${id}" value="${toDateStr(t.deadline)}">
@@ -359,7 +352,7 @@ function renderTasks() {
         <button class="btn-cancel" onclick="cancelEditTask()">キャンセル</button>
         <button class="btn-save" onclick="saveEditTask(${id})">✓ 保存</button>
       </div>
-    </div>`:'';
+    </div>` : '';
     return `<div class="task-item${t.done?' done':''}${isEd?' editing':''}" draggable="true" data-id="${id}" data-type="task"
       ondragstart="onDragStart(event,'task')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'task')" ondragend="onDragEnd(event)">
       <div class="task-row">
@@ -427,7 +420,7 @@ function renderEvents() {
     const id = Number(e.id);
     const dtStr = e.datetime ? new Date(e.datetime).toLocaleString('ja-JP',{month:'long',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit'}) : '';
     const isEd = editingEventId===id;
-    const editArea = isEd?`<div class="edit-area">
+    const editArea = isEd ? `<div class="edit-area">
       <div class="edit-row">
         <input type="text" id="eet-${id}" value="${escHtml(e.title)}" placeholder="予定名" onkeydown="if(event.key==='Escape')cancelEditEvent()">
         <input type="datetime-local" id="eedt-${id}" value="${escHtml(e.datetime||'')}">
@@ -440,7 +433,7 @@ function renderEvents() {
         <button class="btn-cancel" onclick="cancelEditEvent()">キャンセル</button>
         <button class="btn-save" onclick="saveEditEvent(${id})">✓ 保存</button>
       </div>
-    </div>`:'';
+    </div>` : '';
     return `<div class="event-item${isEd?' editing':''}" draggable="true" data-id="${id}" data-type="event"
       ondragstart="onDragStart(event,'event')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'event')" ondragend="onDragEnd(event)">
       <div class="event-body">
@@ -549,17 +542,17 @@ function addCategory() {
   categories.push({ name, color });
   document.getElementById('cat-input').value = '';
   document.getElementById('cat-color').value = '#34c759';
-  renderCatList(); renderCatSelects(); scheduleSave('categories');
+  renderCatList(); renderCatSelects(); renderCatTabs(); scheduleSave('categories');
 }
 
 function deleteCategory(name) {
   categories = categories.filter(c => c.name !== name);
-  renderCatList(); renderCatSelects(); scheduleSave('categories');
+  renderCatList(); renderCatSelects(); renderCatTabs(); scheduleSave('categories');
 }
 
 function updateCatColor(name, color) {
   const c = categories.find(c => c.name===name);
-  if (c) { c.color = color; renderCatList(); renderTasks(); scheduleSave('categories'); }
+  if (c) { c.color = color; renderCatList(); renderCatTabs(); renderTasks(); scheduleSave('categories'); }
 }
 
 let catDragSrc = null;
@@ -583,7 +576,7 @@ function catDrop(e) {
   if (!catDragSrc || e.currentTarget===catDragSrc) return;
   const si = Number(catDragSrc.dataset.index), di = Number(e.currentTarget.dataset.index);
   categories.splice(di, 0, categories.splice(si, 1)[0]);
-  renderCatList(); renderCatSelects(); scheduleSave('categories');
+  renderCatList(); renderCatSelects(); renderCatTabs(); scheduleSave('categories');
 }
 
 loadAll();
