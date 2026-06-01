@@ -333,6 +333,11 @@ function renderTasks() {
     const statusMatch = currentFilter === 'active' ? !t.done : currentFilter === 'done' ? t.done : true;
     return catMatch && statusMatch;
   });
+  // 完了済みを末尾に、未完了を先頭に並び替え（元の順序を維持しつつ）
+  filtered.sort((a, b) => {
+    if (a.done === b.done) return 0;
+    return a.done ? 1 : -1;
+  });
   if (!filtered.length) { list.innerHTML = '<div class="empty">タスクがありません</div>'; return; }
   list.innerHTML = filtered.map(t => {
     const id = Number(t.id);
@@ -415,6 +420,12 @@ function saveEditEvent(id) {
 
 function renderEvents() {
   const list = document.getElementById('event-list');
+  events.sort((a, b) => {
+    if (!a.datetime && !b.datetime) return 0;
+    if (!a.datetime) return 1;
+    if (!b.datetime) return -1;
+    return a.datetime.localeCompare(b.datetime);
+  });
   if (!events.length) { list.innerHTML = '<div class="empty">予定がありません</div>'; return; }
   list.innerHTML = events.map(e => {
     const id = Number(e.id);
