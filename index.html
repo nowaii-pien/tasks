@@ -347,7 +347,7 @@ function renderTasks() {
   });
   if (!sorted.length) { list.innerHTML = '<div class="empty">タスクがありません</div>'; return; }
   if (!filtered.length) { list.innerHTML = '<div class="empty">タスクがありません</div>'; return; }
-  list.innerHTML = filtered.map(t => {
+  list.innerHTML = sorted.map(t => {
     const id = Number(t.id);
     const deadlineStr = toDateStr(t.deadline);
     const overdue = deadlineStr && deadlineStr < today && !t.done;
